@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Файловый менеджер</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body {
+            background-color: #0b0e14;
+            color: #dcdde1;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        .navbar {
+            display: flex;
+            align-items: center;
+            padding: 10px 20px;
+            background: #0f1419;
+            border-bottom: 2px solid #1e3a5f;
+        }
+
+        .btn-nav {
+            background: #1e3a5f;
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-size: 13px;
+            transition: 0.2s;
+        }
+
+        .btn-nav:hover { background: #2b5288; }
+
+        .fm-container {
+            max-width: 1100px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #161b22;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Хлебные крошки (Path Bar) */
+        .path-bar {
+            display: flex;
+            align-items: center;
+            background: #0d1117;
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border: 1px solid #30363d;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .path-link {
+            color: #58a6ff;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .path-link:hover { text-decoration: underline; }
+
+        /* Верхние кнопки управления */
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn-action {
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.2s;
+        }
+
+        .btn-action:hover { background: #30363d; }
+        .btn-upload-btn { background: #238636; color: #fff; border: none; }
+        .btn-upload-btn:hover { background: #2ea043; }
+
+        /* Таблица файлов */
+        .file-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .file-table th, .file-table td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #21262d;
+        }
+
+        .file-table th {
+            background: #0d1117;
+            color: #8b949e;
+        }
+
+        .file-table tr:hover { background: #1c2128; }
+
+        .item-icon { margin-right: 8px; }
+        .item-name { color: #58a6ff; cursor: pointer; text-decoration: none; }
+        .item-name.file { color: #c9d1d9; cursor: default; }
+
+        .actions-cell {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-edit { background: #d97706; color: #fff; }
+        .btn-download { background: #2563eb; color: #fff; text-decoration: none; }
+        .btn-delete { background: #dc2626; color: #fff; }
+
+        /* Модальные окна */
+        .modal-bg {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: #161b22;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+            width: 90%;
+            max-width: 800px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+        }
+
+        .modal-editor {
+            width: 100%;
+            height: 400px;
+            background: #0d1117;
+            color: #e6edf3;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 10px;
+            font-family: monospace;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <a href="{{ url_for('index') }}" class="btn-nav">⬅ На главную</a>
+</div>
+
+<div class="fm-container">
+    <div class="toolbar">
+        <button class="btn-action" onclick="goUp()">⬆ Вверх</button>
+        <button class="btn-action btn-upload-btn" onclick="document.getElementById('fileInput').click()">📤 Загрузить файл</button>
+        <input type="file" id="fileInput" style="display: none;" onchange="uploadFile(this)">
+    </div>
+
+    <!-- Путь -->
+    <div class="path-bar" id="pathBar">
+        <span>Путь:</span> /
+    </div>
+
+    <!-- Список -->
+    <table class="file-table">
+        <thead>
+            <tr>
+                <th>Имя</th>
+                <th>Размер</th>
+                <th>Изменен</th>
+                <th style="text-align: right;">Действия</th>
+            </tr>
+        </thead>
+        <tbody id="fileListBody">
+            <tr><td colspan="4" style="text-align:center; color:#8b949e;">Загрузка...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Модальное окно онлайн-редактора -->
+<div id="editorModal" class="modal-bg">
+    <div class="modal">
+        <h3 style="margin-top:0;" id="editorTitle">Редактирование файла</h3>
+        <textarea id="editorContent" class="modal-editor"></textarea>
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px;">
+            <button class="btn-action btn-upload-btn" onclick="saveFile()">Сохранить</button>
+            <button class="btn-action" onclick="closeEditor()">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPath = '';
+let editingFilePath = '';
+
+// Форматирование размера файлов
+function formatBytes(bytes) {
+    if (bytes === 0) return '—';
+    const k = 1024;
+    const sizes = ['Б', 'КБ', 'МБ', 'ГБ'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Форматирование даты
+function formatDate(timestamp) {
+    const d = new Date(timestamp * 1000);
+    return d.toLocaleString('ru-RU');
+}
+
+// Отрисовка хлебных крошек
+function renderBreadcrumbs(path) {
+    const bar = document.getElementById('pathBar');
+    bar.innerHTML = '<span>Путь:</span> <span class="path-link" onclick="loadDirectory(\'\')">root</span> / ';
+    
+    if (!path) return;
+
+    const parts = path.split('/').filter(Boolean);
+    let accumulated = '';
+
+    parts.forEach((part, idx) => {
+        accumulated += (idx === 0 ? '' : '/') + part;
+        const targetPath = accumulated;
+        bar.innerHTML += `<span class="path-link" onclick="loadDirectory('${targetPath}')">${part}</span> / `;
+    });
+}
+
+// Загрузка директории через GET /api/files/list
+async function loadDirectory(path) {
+    currentPath = path;
+    renderBreadcrumbs(path);
+
+    const tbody = document.getElementById('fileListBody');
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#8b949e;">Загрузка...</td></tr>';
+
+    try {
+        const res = await fetch(`/api/files/list?path=${encodeURIComponent(path)}`);
+        const data = await res.json();
+
+        if (res.status !== 200) {
+            tbody.innerHTML = `<tr><td colspan="4" style="color: #ef4444; text-align:center;">${data.error || 'Ошибка загрузки'}</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = '';
+
+        if (data.items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#8b949e;">Папка пуста</td></tr>';
+            return;
+        }
+
+        data.items.forEach(item => {
+            const itemPath = currentPath ? `${currentPath}/${item.name}` : item.name;
+            const isTextFile = /\.(txt|yml|yaml|json|properties|log|conf|cfg|ini|sh|bat)$/i.test(item.name);
+
+            let row = `<tr>
+                <td>`;
+
+            if (item.is_dir) {
+                row += `<span class="item-icon">📁</span><span class="item-name" onclick="loadDirectory('${itemPath}')">${item.name}</span>`;
+            } else {
+                row += `<span class="item-icon">📄</span><span class="item-name file">${item.name}</span>`;
+            }
+
+            row += `</td>
+                <td>${item.is_dir ? '—' : formatBytes(item.size)}</td>
+                <td>${formatDate(item.modified)}</td>
+                <td>
+                    <div class="actions-cell">`;
+
+            if (!item.is_dir && isTextFile) {
+                row += `<button class="btn-sm btn-edit" onclick="openEditor('${itemPath}')">Редактировать</button>`;
+            }
+
+            if (!item.is_dir) {
+                row += `<a href="/api/files/download?path=${encodeURIComponent(itemPath)}" class="btn-sm btn-download">Скачать</a>`;
+            }
+
+            row += `<button class="btn-sm btn-delete" onclick="deleteItem('${itemPath}', '${item.name}')">Удалить</button>
+                    </div>
+                </td>
+            </tr>`;
+
+            tbody.innerHTML += row;
+        });
+
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color: #ef4444; text-align:center;">Ошибка соединения с сервером</td></tr>';
+    }
+}
+
+// Навигация "Вверх"
+function goUp() {
+    if (!currentPath) return;
+    const parts = currentPath.split('/').filter(Boolean);
+    parts.pop();
+    loadDirectory(parts.join('/'));
+}
+
+// Открытие текстового файла
+async function openEditor(path) {
+    editingFilePath = path;
+    document.getElementById('editorTitle').innerText = `Редактирование: ${path.split('/').pop()}`;
+    
+    try {
+        const res = await fetch(`/api/files/read?path=${encodeURIComponent(path)}`);
+        const data = await res.json();
+
+        if (res.status === 200) {
+            document.getElementById('editorContent').value = data.content;
+            document.getElementById('editorModal').style.display = 'flex';
+        } else {
+            alert(data.error || 'Не удалось открыть файл');
+        }
+    } catch (e) {
+        alert('Ошибка при загрузке файла');
+    }
+}
+
+function closeEditor() {
+    document.getElementById('editorModal').style.display = 'none';
+    editingFilePath = '';
+}
+
+// Сохранение изменений в файле
+async function saveFile() {
+    const content = document.getElementById('editorContent').value;
+
+    try {
+        const res = await fetch('/api/files/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: editingFilePath, content: content })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            alert('Файл успешно сохранен!');
+            closeEditor();
+            loadDirectory(currentPath);
+        } else {
+            alert(data.error || ' Ошибка сохранения');
+        }
+    } catch (e) {
+        alert('Ошибка отправки данных');
+    }
+}
+
+// Загрузка файла
+async function uploadFile(input) {
+    if (!input.files || input.files.length === 0) return;
+
+    const formData = new FormData();
+    formData.append('path', currentPath);
+    formData.append('file', input.files[0]);
+
+    try {
+        const res = await fetch('/api/files/upload', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            loadDirectory(currentPath);
+        } else {
+            alert(data.error || 'Ошибка загрузки файла');
+        }
+    } catch (e) {
+        alert('Ошибка запроса на загрузку');
+    } finally {
+        input.value = '';
+    }
+}
+
+// Удаление объекта (файла или папки)
+async function deleteItem(path, name) {
+    if (!confirm(`Вы действительно хотите удалить "${name}"?`)) return;
+
+    try {
+        const res = await fetch('/api/files/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: path })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            loadDirectory(currentPath);
+        } else {
+            alert(data.error || 'Ошибка удаления');
+        }
+    } catch (e) {
+        alert('Ошибка запроса на удаление');
+    }
+}
+
+// Инициализация при старте
+document.addEventListener('DOMContentLoaded', () => {
+    loadDirectory('');
+});
+</script>
+</body>
+</html>

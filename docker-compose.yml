@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # Сервис веб-панели (Flask)
+  web_panel:
+    build: ./site
+    container_name: minecraft_web_panel
+    ports:
+      - "5000:5000"
+    environment:
+      - SERVER_DIR=/mc_server
+    volumes:
+      # Монтируем папку с файлами сервера внутрь контейнера веб-панели
+      - ./server_mohist:/mc_server
+    restart: always
+
+  # Сервис сервера Minecraft
+  mc_server:
+    image: itzg/minecraft-server:latest   # Популярный образ для генерации MC-серверов
+    container_name: minecraft_server
+    ports:
+      - "25565:25565"                     # Порт игрового сервера
+      - "8123:8123"                       # Порт Dynmap
+      - "25575:25575"                     # Порт RCON
+    environment:
+      EULA: "TRUE"
+      TYPE: "MOHIST"
+      MEMORY: "4G"
+      ENABLE_RCON: "true"
+      RCON_PASSWORD: "your_rcon_password"
+    volumes:
+      - ./server_mohist:/data             # Файлы сервера сохраняются в вашу папку на хосте
+    restart: always

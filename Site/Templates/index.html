@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Карта администрации</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+/* Дополнительные стили для шапки с авторизацией */
+.navbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    background: #0f1419;
+    border-bottom: 2px solid #1e3a5f;
+    flex-wrap: wrap;
+}
+
+.navbar button, .navbar a.btn-nav {
+    background: #1e3a5f;
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: 0.2s;
+}
+
+.navbar button:hover, .navbar a.btn-nav:hover {
+    background: #2b5288;
+}
+
+.user-info {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #fff;
+    font-size: 14px;
+}
+
+.user-info strong {
+    color: #6c5ce7;
+}
+
+.user-role {
+    background: #2d3436;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.user-role.owner {
+    background: #e67e22;
+    color: #fff;
+}
+
+.user-role.admin {
+    background: #27ae60;
+    color: #fff;
+}
+
+.btn-owner {
+    background: #e67e22 !important;
+    color: white !important;
+}
+
+.btn-owner:hover {
+    background: #d35400 !important;
+}
+
+.btn-stop {
+    background: #c0392b !important;
+    color: white !important;
+}
+
+.btn-stop:hover {
+    background: #962d22 !important;
+}
+
+.btn-start {
+    background: #27ae60 !important;
+    color: white !important;
+}
+
+.btn-start:hover {
+    background: #1e8449 !important;
+}
+
+.btn-logout {
+    background: #e74c3c !important;
+    color: white !important;
+}
+
+.btn-logout:hover {
+    background: #c0392b !important;
+}
+
+/* Стили для таблицы забаненных игроков */
+.banned-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    font-size: 13px;
+}
+
+.banned-table th, .banned-table td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid #1e3a5f;
+}
+
+.banned-table th {
+    background: #0f1419;
+    color: #a4b0be;
+}
+
+.btn-unban {
+    background: #27ae60;
+    color: #fff;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.btn-unban:hover {
+    background: #1e8449;
+}
+</style>
+</head>
+
+<body>
+
+<div class="navbar">
+    <!-- Основное управление игроками и консолью -->
+    <button onclick="openCommandModal()">🖥️ Консоль</button>
+    <button onclick="openBanPlayersModal()">Бан игрока</button>
+    <button onclick="openBannedListModal()">⛔ Забаненные</button>
+    <button onclick="openPlayersModal()">Кик игрока</button>
+    
+    <!-- Файловый менеджер -->
+    <a href="{{ url_for('files_view') }}" class="btn-nav">📁 Файловый менеджер</a>
+
+    <!-- Управление питанием сервера -->
+    <form action="{{ url_for('stop_server') }}" method="POST" style="display:inline;" onsubmit="return confirm('Вы действительно хотите остановить сервер Minecraft?');">
+        <button type="submit" class="btn-stop">🛑 Выключить</button>
+    </form>
+    <form action="{{ url_for('start_server') }}" method="POST" style="display:inline;">
+    <button type="submit" class="btn-start">▶ Запустить</button>
+    </form>
+
+    <!-- Блок информации о пользователе и меню владельца -->
+    <div class="user-info">
+        <span>👤 <strong>{{ current_user.username }}</strong></span>
+        <span class="user-role {{ current_user.role }}">{{ current_user.role }}</span>
+        
+        {% if current_user.role == 'owner' %}
+            <a href="/admins" class="btn-nav btn-owner">👥 Список админов</a>
+            <a href="{{ url_for('create_admin') }}" class="btn-nav btn-owner">➕ Создать админа</a>
+        {% endif %}
+        
+        <a href="{{ url_for('logout') }}" class="btn-nav btn-logout">Выйти</a>
+    </div>
+</div>
+
+<div class="map-container">
+    <iframe src="http://greshok.tech:8123"></iframe>
+</div>
+
+<!-- Модальное окно просмотра списка забаненных игроков -->
+<div id="bannedListModal" class="modal-bg">
+    <div class="modal" style="max-width: 650px; width: 90%;">
+        <h3 style="margin-top: 0;">⛔ Список забаненных игроков</h3>
+        <div id="bannedContainer" style="max-height: 350px; overflow-y: auto;">
+            Загрузка...
+        </div>
+        <button type="button" onclick="closeBannedListModal()" style="width: 100%; margin-top: 15px; padding: 10px; background: #2d3436; color: #fff; border: none; border-radius: 5px; cursor: pointer;">Закрыть</button>
+    </div>
+</div>
+
+<!-- Модальное окно выбора игрока для кика -->
+<div id="playersModal" class="modal-bg">
+    <div class="modal">
+        <h3>Выберите игрока</h3>
+        <div id="playersList">Загрузка...</div>
+        <button onclick="closePlayersModal()">Назад</button>
+    </div>
+</div>
+
+<!-- Модальное окно причины кика -->
+<div id="reasonModal" class="modal-bg">
+    <div class="modal">
+        <h3>Причина кика</h3>
+        <form method="POST" action="/kick_player">
+            <input type="hidden" name="player" id="kickPlayerName">
+            <textarea name="reason" rows="3" placeholder="Причина..." required></textarea>
+            <button type="submit">Кикнуть</button>
+            <button type="button" onclick="closeReasonModal()">Назад</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальное окно выбора игрока для бана -->
+<div id="banPlayersModal" class="modal-bg">
+    <div class="modal">
+        <h3>Выберите игрока</h3>
+        <div id="banPlayersList">Загрузка...</div>
+        <button onclick="closeBanPlayersModal()">Назад</button>
+    </div>
+</div>
+
+<!-- Модальное окно причины бана -->
+<div id="banReasonModal" class="modal-bg" onclick="closeBanModalOnOverlay(event)">
+    <div class="modal">
+        <h3>Бан игрока</h3>
+        <form method="POST" action="/ban_player">
+            <input type="hidden" name="player" id="banPlayerName">
+
+            <label style="display: block; text-align: left; margin-bottom: 6px; font-size: 14px; color: #a4b0be;">Причина бана:</label>
+            <textarea name="reason" rows="3" placeholder="Причина бана" required style="width: 100%; box-sizing: border-box; background: #0f1419; border: 1px solid #1e3a5f; color: #fff; border-radius: 6px; padding: 10px; font-family: inherit; resize: vertical;"></textarea>
+
+            <label style="display: block; text-align: left; margin-top: 15px; margin-bottom: 8px; font-size: 14px; color: #a4b0be;">Срок бана:</label>
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap;">
+                <input type="number" name="duration_amount" id="duration_amount" min="1" value="1" 
+                       style="width: 65px; background: #0f1419; border: 1px solid #1e3a5f; color: #fff; border-radius: 6px; padding: 8px 10px; font-size: 14px; outline: none; transition: 0.2s;">
+                
+                <select name="duration_unit" id="duration_unit" 
+                        style="width: 110px; background: #0f1419; border: 1px solid #1e3a5f; color: #fff; border-radius: 6px; padding: 8px; font-size: 14px; outline: none; cursor: pointer; transition: 0.2s;">
+                    <option value="s">секунд</option>
+                    <option value="m">минут</option>
+                    <option value="h" selected>часов</option>
+                    <option value="d">дней</option>
+                    <option value="w">недель</option>
+                    <option value="mo">месяцев</option>
+                    <option value="y">лет</option>
+                </select>
+
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap; font-size: 14px; color: #fff; user-select: none;">
+                    <input type="checkbox" name="is_permanent" id="is_permanent" onchange="toggleDurationInputs()" 
+                           style="accent-color: #e74c3c; width: 18px; height: 18px; cursor: pointer; margin: 0;"> 
+                    Навсегда
+                </label>
+            </div>
+
+            <button type="submit" class="btn-logout" style="width: 100%; padding: 10px; font-size: 15px; font-weight: 600;">Забанить</button>
+            <button type="button" onclick="closeBanReasonModal()" style="width: 100%; margin-top: 8px; padding: 10px; background: #2d3436; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; transition: 0.2s;">Назад</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальное окно выполнения RCON команды -->
+<div id="commandModal" class="modal-bg">
+    <div class="modal">
+        <h3 style="margin-top: 0;">🖥️ Выполнить RCON команду</h3>
+        <p style="color: #a4b0be; font-size: 14px; margin-bottom: 15px;">Внимание: вы выполняете команды напрямую от имени сервера.</p>
+        
+        <form method="POST" action="/execute_command">
+            <input type="text" name="command" placeholder="Например: say Всем привет! или time set day" required 
+                   style="width: 100%; box-sizing: border-box; background: #0f1419; border: 1px solid #1e3a5f; color: #fff; border-radius: 6px; padding: 10px 12px; font-size: 14px; font-family: inherit; outline: none; transition: 0.2s; margin-bottom: 20px;">
+            
+            <button type="submit" class="btn-logout" style="width: 100%; padding: 10px; font-size: 15px; font-weight: 600;">Выполнить</button>
+            <button type="button" onclick="closeCommandModal()" style="width: 100%; margin-top: 8px; padding: 10px; background: #2d3436; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; transition: 0.2s;">Назад</button>
+        </form>
+    </div>
+</div>
+
+<!-- Модальное окно для Личных Сообщений -->
+<div id="msgModal" class="modal-bg">
+    <div class="modal">
+        <h3 style="margin-top: 0;">💬 Сообщение игроку <span id="msgPlayerTitle" style="color: #5865f2;"></span></h3>
+
+        <form method="POST" action="/execute_command" id="msgForm">
+            <input type="hidden" name="command" id="msgFullCommand">
+
+            <textarea id="msgTextInput" rows="3" placeholder="Введите ваше сообщение..." required 
+                      style="width: 100%; box-sizing: border-box; background: #0f1419; border: 1px solid #1e3a5f; color: #fff; border-radius: 6px; padding: 10px; font-size: 14px; font-family: inherit; resize: vertical; outline: none; margin-bottom: 20px;"></textarea>
+            
+            <button type="submit" style="width: 100%; padding: 10px; background: #5865f2; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; font-weight: 600;">Отправить</button>
+            <button type="button" onclick="closeMsgModal()" style="width: 100%; margin-top: 8px; padding: 10px; background: #2d3436; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; transition: 0.2s;">Назад</button>
+        </form>
+    </div>
+</div>
+
+<!-- Всплывающее окно управления игроком -->
+<div id="playerModal" class="custom-modal" style="display: none;">
+  <div class="custom-modal-content">
+    <span class="close-modal-btn" onclick="closePlayerModal()">&times;</span>
+    <h3 id="modalPlayerTitle">Управление игроком</h3>
+    
+    <div class="modal-body">
+      <label for="actionReason">Причина:</label>
+      <input type="text" id="actionReason" placeholder="Укажите причину..." value="Нарушение правил">
+
+      <div id="tempbanBlock" style="margin-top: 10px;">
+        <label>Срок бана (для Tempban):</label>
+        <div style="display: flex; gap: 5px;">
+          <input type="number" id="tempbanAmount" value="1" min="1" style="width: 70px;">
+          <select id="tempbanUnit">
+            <option value="h">Часов</option>
+            <option value="d">Дней</option>
+            <option value="m">Минут</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+      <button class="btn-kick" onclick="executePlayerAction('kick')">Кикнуть</button>
+      <button class="btn-tempban" onclick="executePlayerAction('tempban')">Временный бан</button>
+      <button class="btn-ban" onclick="executePlayerAction('ban')">Перм. бан</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модальное окно подтверждения разбана -->
+<div id="unbanConfirmModal" class="modal-bg">
+    <div class="modal" style="max-width: 400px; text-align: center;">
+        <h3 style="margin-top: 0; color: #fff;">Подтверждение действия</h3>
+        <p id="unbanConfirmText" style="color: #a4b0be; font-size: 14px; margin: 15px 0 20px 0;"></p>
+        
+        <div style="display: flex; gap: 10px; justify-content: center;">
+            <button id="unbanConfirmBtn" class="btn-start" style="flex: 1; padding: 10px; font-weight: 600;">Да, разбанить</button>
+            <button type="button" onclick="closeUnbanConfirmModal()" style="flex: 1; padding: 10px; background: #2d3436; color: #fff; border: none; border-radius: 5px; cursor: pointer;">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<!-- Контейнер для всплывающего Toast-уведомления -->
+<div id="toastNotification" class="toast">
+    <div class="toast-icon">🚀</div>
+    <div class="toast-content">
+        <div class="toast-title">Команда отправлена!</div>
+        <div class="toast-message">Сервер запускается. Полная загрузка может занять 1–2 минуты.</div>
+    </div>
+</div>
+
+
+<!-- Подключаем скрипт main.js -->
+<script src="{{ url_for('static', filename='main.js') }}"></script>
+
+<!-- Автоматический вызов Toast при получении сообщений от Flask -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <script>
+        document.addEventListener("DOMContentLoaded", function() {
+          showToast('🚀 Уведомление', '{{ message }}');
+        });
+      </script>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+</body>
+</html>
