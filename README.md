@@ -1,4 +1,4 @@
-```markdown
+
 # Web-Panel-Admin-Minecraft
 
 > Удобная веб-панель для администрирования сервера Minecraft
@@ -34,7 +34,7 @@
    ```bash
    git clone https://github.com/Gresh0k/Web-Panel-Admin-Minecraft.git
    cd Web-Panel-Admin-Minecraft
-   ```
+
 3. Соберите и запустите контейнер:
    ```bash
    docker build -t mc-admin-panel .
